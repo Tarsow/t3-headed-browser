@@ -1,0 +1,22 @@
+# Security Policy
+
+## Reporting a Vulnerability
+
+Please do not open a public issue for security vulnerabilities.
+
+Report them privately to:
+
+  tarsow@tarsow.dev
+
+Include a clear description, steps to reproduce, and (if available) a
+suggested fix.
+
+## Response
+
+We aim to acknowledge reports within a few days and to keep you informed of
+progress.
+
+## Disclosure
+
+Please allow a reasonable window before public disclosure so a fix can be
+released. We will credit reporters who follow responsible disclosure.

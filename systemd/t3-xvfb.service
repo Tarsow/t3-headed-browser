@@ -1,0 +1,15 @@
+# Optional: a private virtual display for the headed server browser, for hosts
+# without one. Needs Xvfb, xauth and openssl. Start it before T3 Code's service.
+[Unit]
+Description=Virtual X display :99 for T3 Code's server browser
+Documentation=https://github.com/Tarsow/t3-headed-browser
+
+[Service]
+UMask=0077
+ExecStartPre=/bin/sh -c 'touch %h/.Xauthority && xauth -f %h/.Xauthority add :99 . $$(openssl rand -hex 16)'
+ExecStart=/usr/bin/Xvfb :99 -screen 0 1920x1080x24 -nolisten tcp -auth %h/.Xauthority
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,11 @@
+[Unit]
+Description=Watch for T3 Code server browser installs
+Documentation=https://github.com/Tarsow/t3-headed-browser
+
+[Path]
+# T3 renames each newly downloaded shell into this directory.
+PathChanged=%h/.t3/tools/chrome-headless-shell/linux64
+Unit=t3-headed-browser.service
+
+[Install]
+WantedBy=default.target

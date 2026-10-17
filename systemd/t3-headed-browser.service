@@ -1,0 +1,7 @@
+[Unit]
+Description=Re-apply t3-headed-browser to T3 Code's server browser
+Documentation=https://github.com/Tarsow/t3-headed-browser
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/bin/t3-headed-browser install

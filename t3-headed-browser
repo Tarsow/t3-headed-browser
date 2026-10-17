@@ -1,0 +1,229 @@
+#!/bin/bash
+# t3-headed-browser: run T3 Code's server browser as a real, headed Chromium.
+#
+# When no desktop app is attached to a T3 Code server, the browser panel runs
+# T3's bundled chrome-headless-shell, and Google refuses sign-in and sign-up from
+# it. This tool swaps each installed shell for a small shim that runs a full
+# Chromium-based browser, headed, on an X display such as Xvfb. The original
+# binary stays beside the shim, which falls back to it when the browser or the
+# display is missing.
+#
+# https://github.com/Tarsow/t3-headed-browser
+set -euo pipefail
+
+version=0.1.0
+t3_home="${T3CODE_HOME:-$HOME/.t3}"
+root="$t3_home/tools/chrome-headless-shell"
+config="${XDG_CONFIG_HOME:-$HOME/.config}/t3-headed-browser/config"
+x11="${T3_HEADED_BROWSER_X11_DIR:-/tmp/.X11-unix}"
+marker="# t3-headed-browser shim"
+
+# Real browser binaries rather than their launcher scripts, so the browser's own
+# PID is the one the shim waits for in the profile lock.
+candidates=(
+  /opt/google/chrome/chrome
+  /usr/lib/chromium/chromium
+  /usr/lib/chromium-browser/chromium-browser
+  /opt/brave.com/brave/brave
+  /opt/microsoft/msedge/msedge
+)
+
+usage() {
+  cat <<EOF
+Usage: t3-headed-browser <command> [options]
+
+Commands:
+  install [--browser PATH] [--display :N]
+              Swap every installed T3 server browser for the shim. Options are
+              saved to $config
+              and reused on later runs. Defaults: the first browser found
+              among Chrome, Chromium, Brave and Edge, and display :99.
+  uninstall   Put the original chrome-headless-shell binaries back.
+  status      Show the configuration and each installed shell's state.
+  version     Print the version.
+EOF
+}
+
+die() {
+  echo "t3-headed-browser: $*" >&2
+  exit 1
+}
+
+read_config() {
+  browser="" display=":99"
+  [ -r "$config" ] || return 0
+  local key value
+  while IFS='=' read -r key value; do
+    case $key in
+      browser) browser=$value ;;
+      display) display=$value ;;
+    esac
+  done <"$config"
+}
+
+write_config() {
+  mkdir -p "$(dirname "$config")"
+  printf 'browser=%s\ndisplay=%s\n' "$browser" "$display" >"$config"
+}
+
+detect_browser() {
+  local candidate
+  for candidate in "${candidates[@]}"; do
+    if [ -x "$candidate" ]; then
+      echo "$candidate"
+      return 0
+    fi
+  done
+  return 1
+}
+
+display_up() { [ -S "$x11/X${display#:}" ]; }
+
+shells() { find "$root" -mindepth 3 -maxdepth 3 -name chrome-headless-shell -type f 2>/dev/null | sort; }
+
+is_shim() { [ "$(head -c 512 "$1" 2>/dev/null | tr -d '\0' | sed -n 2p)" = "$marker" ]; }
+
+shim() {
+  printf '#!/bin/bash\n%s\n' "$marker"
+  # The ${...} below is shim code, written as is; only %q is filled in now.
+  # shellcheck disable=SC2016
+  printf 'browser=${T3_HEADED_BROWSER:-%q}\n' "$browser"
+  # shellcheck disable=SC2016
+  printf 'display=${T3_HEADED_BROWSER_DISPLAY:-%q}\n' "$display"
+  cat <<'SHIM'
+# T3 Code launches this file as its headless server browser. Run a full, headed
+# Chromium on an X display instead. Written by t3-headed-browser
+# (https://github.com/Tarsow/t3-headed-browser); do not edit.
+here=$(dirname "$(readlink -f "$0")")
+real="$here/chrome-headless-shell.real"
+x11="${T3_HEADED_BROWSER_X11_DIR:-/tmp/.X11-unix}"
+for arg in "$@"; do [ "$arg" = --version ] && exec "$real" "$@"; done
+if [ ! -x "$browser" ] || [ ! -S "$x11/X${display#:}" ]; then
+  exec "$real" "$@"
+fi
+args=() profile="" windowless=""
+for arg in "$@"; do
+  case $arg in
+    --headless | --headless=* | --hide-scrollbars) continue ;;
+    --user-data-dir=*) profile=${arg#*=} ;;
+    --no-startup-window) windowless=1 ;;
+  esac
+  args+=("$arg")
+done
+export DISPLAY="$display" XAUTHORITY="${XAUTHORITY:-$HOME/.Xauthority}"
+if [ -n "$windowless" ] || [ -z "$profile" ]; then
+  exec "$browser" "${args[@]}"
+fi
+# T3 opens a persistent profile, closes its first page, then opens its tab. A
+# headed browser quits when its last window closes, so start it windowless,
+# which keeps it running, and open the first page with a second invocation once
+# the browser holds the profile lock.
+"$browser" --no-startup-window "${args[@]}" &
+pid=$!
+trap 'kill -TERM "$pid" 2>/dev/null' TERM INT HUP
+owns_lock() {
+  local owner
+  owner=$(readlink "$profile/SingletonLock" 2>/dev/null) || return 1
+  owner=${owner##*-}
+  [ "$owner" = "$pid" ] || [ "$(awk '/^PPid:/ {print $2}' "/proc/$owner/status" 2>/dev/null)" = "$pid" ]
+}
+for _ in $(seq 300); do
+  if owns_lock; then
+    "$browser" --user-data-dir="$profile" --no-first-run about:blank </dev/null >/dev/null 2>&1 3>&- 4>&-
+    break
+  fi
+  kill -0 "$pid" 2>/dev/null || break
+  sleep 0.05
+done
+wait "$pid"
+status=$?
+while kill -0 "$pid" 2>/dev/null; do
+  wait "$pid"
+  status=$?
+done
+exit "$status"
+SHIM
+}
+
+# T3 launches a freshly installed shell straight away, usually before the shim
+# lands. Stop that headless browser so T3's next tab relaunches through the shim.
+stop_unshimmed() {
+  local pid
+  for pid in $(pgrep -u "$(id -u)" -f chrome-headless-shell || true); do
+    [ "$(readlink "/proc/$pid/exe" 2>/dev/null)" = "$1" ] || continue
+    tr '\0' '\n' <"/proc/$pid/cmdline" 2>/dev/null | grep -q '^--type=' && continue
+    kill -TERM "$pid" 2>/dev/null && echo "stopped headless browser $pid; T3 relaunches it through the shim"
+  done
+}
+
+cmd_install() {
+  read_config
+  while [ $# -gt 0 ]; do
+    case $1 in
+      --browser) [ $# -ge 2 ] || die "--browser needs a path"; browser=$2; shift 2 ;;
+      --browser=*) browser=${1#*=}; shift ;;
+      --display) [ $# -ge 2 ] || die "--display needs a value like :99"; display=$2; shift 2 ;;
+      --display=*) display=${1#*=}; shift ;;
+      *) die "unknown option: $1" ;;
+    esac
+  done
+  if [ -z "$browser" ]; then
+    browser=$(detect_browser) || die "no Chromium-based browser found; pass --browser PATH"
+  fi
+  [ -x "$browser" ] || die "not executable: $browser"
+  case $display in
+    :[0-9]*) ;;
+    *) die "display must look like :99, got '$display'" ;;
+  esac
+  write_config
+  display_up || echo "warning: no X server on $display yet; the shim uses the headless shell until one runs" >&2
+
+  local exe found=""
+  while IFS= read -r exe; do
+    found=1
+    if is_shim "$exe"; then
+      shim >"$exe.new"
+      chmod 755 "$exe.new"
+      mv -f "$exe.new" "$exe"
+      continue
+    fi
+    mv "$exe" "$exe.real"
+    shim >"$exe"
+    chmod 755 "$exe"
+    echo "shimmed $exe"
+    stop_unshimmed "$exe.real"
+  done < <(shells)
+  [ -n "$found" ] || echo "no T3 server browser under $root yet; run install again after T3 downloads it"
+}
+
+cmd_uninstall() {
+  local exe
+  while IFS= read -r exe; do
+    is_shim "$exe" || continue
+    if [ -x "$exe.real" ]; then
+      mv -f "$exe.real" "$exe"
+      echo "restored $exe"
+    fi
+  done < <(shells)
+}
+
+cmd_status() {
+  read_config
+  echo "browser: ${browser:-not configured}"
+  if display_up; then echo "display: $display (running)"; else echo "display: $display (not running)"; fi
+  local exe found=""
+  while IFS= read -r exe; do
+    found=1
+    if is_shim "$exe"; then echo "shimmed:  $exe"; else echo "original: $exe"; fi
+  done < <(shells)
+  [ -n "$found" ] || echo "no T3 server browser under $root"
+}
+
+case "${1:-}" in
+  install) shift; cmd_install "$@" ;;
+  uninstall) cmd_uninstall ;;
+  status) cmd_status ;;
+  version | --version) echo "t3-headed-browser $version" ;;
+  help | -h | --help) usage ;;
+  *) usage >&2; exit 2 ;;
+esac

@@ -1,0 +1,12 @@
+# Changelog
+
+## 0.1.0 (2026-10-17)
+
+First release.
+
+- `t3-headed-browser install` swaps T3 Code's bundled `chrome-headless-shell` for a shim. The shim runs a full Chromium-based browser (Google Chrome, Chromium, Brave or Microsoft Edge) headed on an X display, so Google sign-in and sign-up work in the browser panel of a remote T3 server.
+- Persistent profiles survive T3 closing a profile's first page. The browser starts windowless, and its first page opens through a second invocation.
+- The shim falls back to the original headless shell when the browser or the X display is missing.
+- `t3-headed-browser.path` re-applies the shim when T3 downloads a new shell version. It also stops a headless browser that T3 launched before the shim landed.
+- `uninstall` restores the original binaries, and `status` shows the configuration and each shell's state.
+- Includes an example `t3-xvfb.service` for servers without a display.

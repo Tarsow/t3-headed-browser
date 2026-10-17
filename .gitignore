@@ -1,0 +1,9 @@
+# Ignores that travel with the repo: they are committed, so they should describe
+# the project rather than one machine. Personal, always-on ignores (.DS_Store,
+# .env, editor directories) belong in .git/info/exclude instead, which is not
+# committed.
+
+# Output of the Playwright MCP browser: page snapshots, screenshots and console
+# logs left behind while reviewing a change. Remove this rule in a repo that
+# needs to track those artifacts.
+.playwright-mcp/
