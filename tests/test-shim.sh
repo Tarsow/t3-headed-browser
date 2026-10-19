@@ -76,14 +76,17 @@ run_shim --headless=new --remote-debugging-pipe --user-data-dir="$work/render" a
 check "HTML preview launches run the original shell" 'grep -qx "REAL --headless=new --remote-debugging-pipe --user-data-dir=$work/render about:blank" "$log"'
 
 run_shim --no-startup-window --headless --hide-scrollbars --user-data-dir="$work/tmpprofile" --remote-debugging-pipe
-check "shared browser launch drops headless flags" 'grep -q "^BROWSER DISPLAY=:99 --no-startup-window --user-data-dir=$work/tmpprofile --remote-debugging-pipe$" "$log"'
+check "shared browser launch drops headless flags" 'grep -q "^BROWSER DISPLAY=:99 --no-startup-window --user-data-dir=$work/tmpprofile --remote-debugging-pipe --disable-blink-features=WebAuth$" "$log"'
 check "shared browser launch opens no extra page" '[ "$(grep -c "^BROWSER" "$log")" = 1 ]'
 
 run_shim --headless --hide-scrollbars --user-data-dir="$work/profile" --remote-debugging-pipe about:blank
 status=$?
-check "persistent launch starts the browser windowless" 'grep -q "^BROWSER DISPLAY=:99 --no-startup-window --user-data-dir=$work/profile --remote-debugging-pipe about:blank$" "$log"'
+check "persistent launch starts the browser windowless" 'grep -q "^BROWSER DISPLAY=:99 --no-startup-window --user-data-dir=$work/profile --remote-debugging-pipe about:blank --disable-blink-features=WebAuth$" "$log"'
 check "persistent launch opens the first page in the same profile" 'grep -q "^BROWSER DISPLAY=:99 --user-data-dir=$work/profile --no-first-run about:blank$" "$log"'
 check "shim exits with the browser's status" '[ "$status" = 7 ]'
+
+run_shim --no-startup-window --headless --disable-blink-features=AutomationControlled
+check "WebAuthn is merged into an existing --disable-blink-features" 'grep -q "^BROWSER DISPLAY=:99 --no-startup-window --disable-blink-features=AutomationControlled,WebAuth$" "$log"'
 
 DISPLAY=:0 XAUTHORITY="$work/desktop-xauthority" run_shim --no-startup-window --headless
 check "another display's XAUTHORITY is replaced with ~/.Xauthority" '[ "$(cat "$work/xauthority")" = "$HOME/.Xauthority" ]'

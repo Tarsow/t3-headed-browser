@@ -106,15 +106,20 @@ done
 if [ ! -x "$browser" ] || [ ! -S "$x11/X${display#:}" ]; then
   exec "$real" "$@"
 fi
-args=() profile="" windowless=""
+args=() profile="" windowless="" blink=""
 for arg in "$@"; do
   case $arg in
     --headless | --headless=* | --hide-scrollbars) continue ;;
+    # Chromium keeps only the last copy of a switch, so merge into Playwright's.
+    --disable-blink-features=*) arg="$arg,WebAuth" blink=1 ;;
     --user-data-dir=*) profile=${arg#*=} ;;
     --no-startup-window) windowless=1 ;;
   esac
   args+=("$arg")
 done
+# A headed browser shows its own passkey prompt, which the panel can't show and
+# which blocks the page. Without WebAuthn, sites offer other sign-in methods.
+[ -n "$blink" ] || args+=(--disable-blink-features=WebAuth)
 # An inherited XAUTHORITY belongs to the inherited DISPLAY, such as a desktop
 # session's file, and has no cookie for another display like Xvfb's.
 if [ "${DISPLAY:-}" != "$display" ] || [ -z "${XAUTHORITY:-}" ]; then
