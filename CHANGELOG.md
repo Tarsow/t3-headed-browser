@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.1
+
+- The headed browser no longer quits at startup when T3 runs inside a desktop session, such as the T3 Code desktop app on GNOME. The shim used to keep the session's `XAUTHORITY`, which has no cookie for the configured display, so the browser couldn't connect to Xvfb. It now keeps an inherited `XAUTHORITY` only for the display it belongs to and otherwise uses `~/.Xauthority`.
+
 ## 0.1.0 (2026-10-17)
 
 First release.

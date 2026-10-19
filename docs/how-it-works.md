@@ -36,7 +36,7 @@ A full Chromium build passes, and the headless shell doesn't. This tool runs the
 
 1. **Version checks.** For `--version`, it runs the original binary.
 2. **Fallback.** If the browser isn't executable, or there is no X socket for the display (`/tmp/.X11-unix/X<N>`), it runs the original binary with the original arguments. The panel then keeps working, headless.
-3. **Flag cleanup.** Otherwise it drops `--headless`, `--headless=*` and `--hide-scrollbars`, sets `DISPLAY`, and sets `XAUTHORITY` (default `~/.Xauthority`).
+3. **Flag cleanup.** Otherwise it drops `--headless`, `--headless=*` and `--hide-scrollbars`, sets `DISPLAY`, and sets `XAUTHORITY`. It keeps an inherited `XAUTHORITY` only when the inherited `DISPLAY` is the configured display; otherwise it uses `~/.Xauthority`. A T3 server started from a desktop session inherits that session's auth file, which has no cookie for Xvfb.
 4. **Throwaway contexts** (incognito and isolated tabs). Playwright passes `--no-startup-window` for these, and the shim simply `exec`s the browser.
 5. **Persistent profiles** (the Default profile and named profiles). T3 calls `launchPersistentContext`. It then closes every page the browser started with, before opening its own tab. A headless shell survives that, but a headed browser quits when its last window closes, and T3's next step fails with `browserContext.newPage: Target page, context or browser has been closed`. `--keep-alive-for-test` doesn't prevent this. So the shim:
    - starts the browser with `--no-startup-window`, which keeps it running with no windows;

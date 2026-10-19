@@ -11,7 +11,7 @@
 # https://github.com/Tarsow/t3-headed-browser
 set -euo pipefail
 
-version=0.1.0
+version=0.1.1
 t3_home="${T3CODE_HOME:-$HOME/.t3}"
 root="$t3_home/tools/chrome-headless-shell"
 config="${XDG_CONFIG_HOME:-$HOME/.config}/t3-headed-browser/config"
@@ -110,7 +110,12 @@ for arg in "$@"; do
   esac
   args+=("$arg")
 done
-export DISPLAY="$display" XAUTHORITY="${XAUTHORITY:-$HOME/.Xauthority}"
+# An inherited XAUTHORITY belongs to the inherited DISPLAY, such as a desktop
+# session's file, and has no cookie for another display like Xvfb's.
+if [ "${DISPLAY:-}" != "$display" ] || [ -z "${XAUTHORITY:-}" ]; then
+  XAUTHORITY="$HOME/.Xauthority"
+fi
+export DISPLAY="$display" XAUTHORITY
 if [ -n "$windowless" ] || [ -z "$profile" ]; then
   exec "$browser" "${args[@]}"
 fi

@@ -38,6 +38,7 @@ browser="$work/fake-browser"
 cat >"$browser" <<EOF
 #!/bin/bash
 echo "BROWSER DISPLAY=\$DISPLAY \$*" >>"$log"
+echo "\$XAUTHORITY" >"$work/xauthority"
 profile=""
 for arg in "\$@"; do case \$arg in --user-data-dir=*) profile=\${arg#*=} ;; esac; done
 case " \$* " in
@@ -80,6 +81,12 @@ status=$?
 check "persistent launch starts the browser windowless" 'grep -q "^BROWSER DISPLAY=:99 --no-startup-window --user-data-dir=$work/profile --remote-debugging-pipe about:blank$" "$log"'
 check "persistent launch opens the first page in the same profile" 'grep -q "^BROWSER DISPLAY=:99 --user-data-dir=$work/profile --no-first-run about:blank$" "$log"'
 check "shim exits with the browser's status" '[ "$status" = 7 ]'
+
+DISPLAY=:0 XAUTHORITY="$work/desktop-xauthority" run_shim --no-startup-window --headless
+check "another display's XAUTHORITY is replaced with ~/.Xauthority" '[ "$(cat "$work/xauthority")" = "$HOME/.Xauthority" ]'
+
+DISPLAY=:99 XAUTHORITY="$work/xvfb-xauthority" run_shim --no-startup-window --headless
+check "XAUTHORITY for the configured display is kept" '[ "$(cat "$work/xauthority")" = "$work/xvfb-xauthority" ]'
 
 T3_HEADED_BROWSER_DISPLAY=:42 run_shim --headless --no-startup-window
 check "missing display falls back to the original shell" 'grep -qx "REAL --headless --no-startup-window" "$log"'
