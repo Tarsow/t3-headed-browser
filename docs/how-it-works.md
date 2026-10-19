@@ -34,7 +34,7 @@ A full Chromium build passes, and the headless shell doesn't. This tool runs the
 
 `t3-headed-browser install` renames each installed `chrome-headless-shell` to `chrome-headless-shell.real` and writes a bash shim in its place. The shim writes in the browser path and display you chose at install time. When T3 launches the shim, it does the following:
 
-1. **Version checks.** For `--version`, it runs the original binary.
+1. **Version checks and HTML previews.** For `--version`, and for `--headless=new`, it runs the original binary. T3's HTML previews (`html_preview` and `html_render`) launch the shell directly with `--headless=new`. They render the agent's own pages, so they don't need a real browser, and a headed one never finishes loading them. Playwright, which runs the browser panel, passes plain `--headless`.
 2. **Fallback.** If the browser isn't executable, or there is no X socket for the display (`/tmp/.X11-unix/X<N>`), it runs the original binary with the original arguments. The panel then keeps working, headless.
 3. **Flag cleanup.** Otherwise it drops `--headless`, `--headless=*` and `--hide-scrollbars`, sets `DISPLAY`, and sets `XAUTHORITY`. It keeps an inherited `XAUTHORITY` only when the inherited `DISPLAY` is the configured display; otherwise it uses `~/.Xauthority`. A T3 server started from a desktop session inherits that session's auth file, which has no cookie for Xvfb.
 4. **Throwaway contexts** (incognito and isolated tabs). Playwright passes `--no-startup-window` for these, and the shim simply `exec`s the browser.

@@ -97,7 +97,12 @@ shim() {
 here=$(dirname "$(readlink -f "$0")")
 real="$here/chrome-headless-shell.real"
 x11="${T3_HEADED_BROWSER_X11_DIR:-/tmp/.X11-unix}"
-for arg in "$@"; do [ "$arg" = --version ] && exec "$real" "$@"; done
+# T3's HTML previews launch the shell directly with --headless=new and render
+# the agent's own pages, which need no real browser. Playwright, which runs the
+# browser panel, passes plain --headless.
+for arg in "$@"; do
+  case $arg in --version | --headless=new) exec "$real" "$@" ;; esac
+done
 if [ ! -x "$browser" ] || [ ! -S "$x11/X${display#:}" ]; then
   exec "$real" "$@"
 fi

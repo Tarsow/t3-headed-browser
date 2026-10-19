@@ -72,6 +72,9 @@ echo "# shim"
 run_shim --version
 check "--version runs the original shell" 'grep -qx "REAL --version" "$log"'
 
+run_shim --headless=new --remote-debugging-pipe --user-data-dir="$work/render" about:blank
+check "HTML preview launches run the original shell" 'grep -qx "REAL --headless=new --remote-debugging-pipe --user-data-dir=$work/render about:blank" "$log"'
+
 run_shim --no-startup-window --headless --hide-scrollbars --user-data-dir="$work/tmpprofile" --remote-debugging-pipe
 check "shared browser launch drops headless flags" 'grep -q "^BROWSER DISPLAY=:99 --no-startup-window --user-data-dir=$work/tmpprofile --remote-debugging-pipe$" "$log"'
 check "shared browser launch opens no extra page" '[ "$(grep -c "^BROWSER" "$log")" = 1 ]'
